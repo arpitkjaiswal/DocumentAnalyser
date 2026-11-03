@@ -1,0 +1,70 @@
+{
+  "documents": [
+    {
+      "name": "observatory.txt",
+      "text": "The Meridian Observatory is located in Jaipur. The observatory opens at 9 AM from Tuesday to Sunday. Adult admission costs 200 rupees. Children under twelve enter free. Telescope sessions begin at 4 PM."
+    },
+    {
+      "name": "leave-policy.txt",
+      "text": "Employees receive twenty days of annual leave. Leave requests must be submitted seven days in advance. Sick leave requires notifying the team manager before 10 AM. Unused annual leave can carry over for three months."
+    },
+    {
+      "name": "product-guide.txt",
+      "text": "The Aurora camera has a 24 megapixel sensor. Battery life is approximately eight hours. The camera supports waterproof operation down to ten metres. Firmware updates are downloaded through the companion application."
+    },
+    {
+      "name": "shipping.txt",
+      "text": "Standard shipping takes five business days. Express shipping takes two business days. Returns are accepted within thirty days of delivery. Customers receive a full refund when returned items are unused."
+    }
+  ],
+  "queries": [
+    {
+      "question": "Where is the observatory located?",
+      "expected": "observatory.txt"
+    },
+    {
+      "question": "How much does adult admission cost?",
+      "expected": "observatory.txt"
+    },
+    {
+      "question": "When do telescope sessions begin?",
+      "expected": "observatory.txt"
+    },
+    {
+      "question": "How many days of annual leave do employees receive?",
+      "expected": "leave-policy.txt"
+    },
+    {
+      "question": "When must leave requests be submitted?",
+      "expected": "leave-policy.txt"
+    },
+    {
+      "question": "Who should be notified about sick leave?",
+      "expected": "leave-policy.txt"
+    },
+    {
+      "question": "What sensor does the Aurora camera have?",
+      "expected": "product-guide.txt"
+    },
+    {
+      "question": "How long is the camera battery life?",
+      "expected": "product-guide.txt"
+    },
+    {
+      "question": "How can firmware updates be downloaded?",
+      "expected": "product-guide.txt"
+    },
+    {
+      "question": "How long does express shipping take?",
+      "expected": "shipping.txt"
+    },
+    { "question": "When are returns accepted?", "expected": "shipping.txt" },
+    {
+      "question": "When do customers receive a full refund?",
+      "expected": "shipping.txt"
+    },
+    { "question": "cryptocurrency blockchain", "expected": null },
+    { "question": "photosynthesis chlorophyll", "expected": null },
+    { "question": "volcano magma", "expected": null }
+  ]
+}

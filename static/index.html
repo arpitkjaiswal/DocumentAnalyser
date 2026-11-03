@@ -1,82 +1,393 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RAG Document Q&A</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-  <div class="bg-grid"></div>
-
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo">📄</span>
-      <div>
-        <h1>RAG <span class="accent">Document Q&A</span></h1>
-        <p>Upload documents and get concise, sourced answers.</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#183d35" />
+    <meta
+      name="description"
+      content="A document research workspace. Find answers, trace the evidence, and keep your knowledge organised."
+    />
+    <title>DocumentAnalyser · Research workspace</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <svg
+      class="icon-defs"
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <symbol id="i-logo" viewBox="0 0 24 24">
+          <path d="M5 3h9l5 5v13H5zM14 3v6h5M9 13h6M9 17h4" />
+        </symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="2" />
+          <rect x="14" y="3" width="7" height="7" rx="2" />
+          <rect x="3" y="14" width="7" height="7" rx="2" />
+          <rect x="14" y="14" width="7" height="7" rx="2" />
+        </symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24">
+          <path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24">
+          <path d="M5 12h14m-6-6 6 6-6 6" />
+        </symbol>
+        <symbol id="i-chat" viewBox="0 0 24 24">
+          <path
+            d="M21 11a8 8 0 0 1-8 8H5l-3 3V11a9 9 0 0 1 19 0ZM7 9h10M7 13h6"
+          />
+        </symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24">
+          <path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" />
+        </symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24">
+          <rect x="8" y="8" width="12" height="13" rx="2" />
+          <path d="M15 8V3H3v13h5" />
+        </symbol>
+        <symbol id="i-download" viewBox="0 0 24 24">
+          <path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="m5 12 4 4L19 6" />
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24">
+          <path d="m6 6 12 12M6 18 18 6" />
+        </symbol>
+        <symbol id="i-book" viewBox="0 0 24 24">
+          <path
+            d="M12 5v16M12 5C8 2 3 3 2 4v15c4-2 7-1 10 2 3-3 6-4 10-2V4c-3-2-7-1-10 1Z"
+          />
+        </symbol>
+      </defs>
+    </svg>
+    <a class="skip-link" href="#question">Skip to question</a>
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="DocumentAnalyser home"
+        ><span class="brand-icon"
+          ><svg><use href="#i-logo" /></svg></span
+        ><span
+          >Document<span class="brand-light">Analyser</span
+          ><small>YOUR RESEARCH WORKSPACE</small></span
+        ></a
+      >
+      <div class="nav-label">WORKSPACE</div>
+      <a class="nav-item active" href="#workspace" aria-current="page"
+        ><svg><use href="#i-grid" /></svg>Overview<span class="nav-dot"></span
+      ></a>
+      <a class="nav-item" href="#library"
+        ><svg><use href="#i-book" /></svg>Document library<span
+          id="nav-count"
+          class="nav-count"
+          >0</span
+        ></a
+      >
+      <a class="nav-item" href="#conversation"
+        ><svg><use href="#i-chat" /></svg>Research session</a
+      >
+      <div class="sidebar-guide">
+        <span class="eyebrow">A LITTLE LESS SEARCHING</span>
+        <h2>More clarity.<br />Less guesswork.</h2>
+        <p>
+          Every answer starts with your documents. Follow the citations back to
+          the evidence.
+        </p>
+        <div class="guide-line"><span>01</span> Add your documents</div>
+        <div class="guide-line"><span>02</span> Ask a specific question</div>
+        <div class="guide-line"><span>03</span> Explore the sources</div>
       </div>
-    </div>
-    <div id="llm-badge" class="pill">Checking…</div>
-  </header>
-
-  <main class="container">
-    <!-- LEFT: knowledge base -->
-    <aside class="panel kb">
-      <h2 class="panel-title">Knowledge Base</h2>
-
-      <div id="dropzone" class="dropzone">
-        <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.md" hidden />
-        <div class="dz-icon">⬆</div>
-        <p><strong>Drop files</strong> or click to upload</p>
-        <span class="dz-hint">PDF · DOCX · TXT · MD</span>
-      </div>
-      <p class="error" id="ingest-error"></p>
-
-      <div class="kb-stats">
-        <div class="stat"><div class="k">Documents</div><div class="v" id="stat-docs">0</div></div>
-        <div class="stat"><div class="k">Chunks</div><div class="v" id="stat-chunks">0</div></div>
-        <div class="stat"><div class="k">Vocab</div><div class="v" id="stat-vocab">0</div></div>
-      </div>
-
-      <h3 class="sub">Indexed Files</h3>
-      <ul id="doc-list" class="doc-list"><li class="muted">Nothing indexed yet.</li></ul>
-      <button class="btn ghost" id="reset-btn">Clear knowledge base</button>
-    </aside>
-
-    <!-- RIGHT: chat -->
-    <section class="panel chat">
-      <h2 class="panel-title">Ask a Question</h2>
-
-      <div class="ask-row">
-        <input id="question" placeholder="e.g. What is the refund policy?" />
-        <button class="btn primary" id="ask-btn">Ask</button>
-      </div>
-      <div class="ask-opts">
-        <label>Mode
-          <select id="mode">
-            <option value="auto" selected>Auto</option>
-            <option value="extractive">Extractive (offline)</option>
-            <option value="generative">Generative (LLM)</option>
-          </select>
-        </label>
-        <label>Top-K
-          <input id="topk" type="number" min="1" max="10" value="5" />
-        </label>
-      </div>
-      <p class="error" id="ask-error"></p>
-
-      <div id="answer-area" class="answer-area">
-        <div class="placeholder">
-          <div class="ph-icon">💬</div>
-          <p>Upload documents, then ask a question to see answers with sources.</p>
+      <div class="sidebar-bottom">
+        <span class="workspace-avatar">DA</span>
+        <div>
+          Personal workspace<small>Shared library on this server</small>
         </div>
       </div>
-    </section>
-  </main>
+    </aside>
 
-  <script src="/static/app.js"></script>
-</body>
+    <div class="main-shell" id="workspace">
+      <header class="topbar">
+        <div class="breadcrumb">
+          Workspace <span>/</span> <strong>Overview</strong>
+        </div>
+        <span id="connection" class="connection"
+          ><span class="status-dot"></span>Connecting</span
+        >
+      </header>
+      <main>
+        <section class="hero">
+          <div>
+            <p class="eyebrow">FROM INFORMATION TO UNDERSTANDING</p>
+            <h1>Your documents.<br /><em>A clearer perspective.</em></h1>
+            <p class="hero-description">
+              Ask better questions. Find the details that matter.<br
+                class="desktop-break"
+              />
+              Keep the evidence one click away.
+            </p>
+          </div>
+          <div class="hero-note">
+            <svg><use href="#i-book" /></svg
+            ><span>A workspace for curious minds.</span
+            ><small>PDF, Word, text & Markdown</small>
+          </div>
+        </section>
+        <section class="metrics" aria-label="Library statistics">
+          <div class="metric">
+            <span class="metric-icon"
+              ><svg><use href="#i-logo" /></svg
+            ></span>
+            <div>
+              <span id="stat-docs" class="metric-value">0</span
+              ><span class="metric-label">Documents in your library</span>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric-icon"
+              ><svg><use href="#i-grid" /></svg
+            ></span>
+            <div>
+              <span id="stat-chunks" class="metric-value">0</span
+              ><span class="metric-label">Searchable passages</span>
+            </div>
+          </div>
+          <div class="metric">
+            <span class="metric-icon"
+              ><svg><use href="#i-search" /></svg
+            ></span>
+            <div>
+              <span id="stat-vocab" class="metric-value">0</span
+              ><span class="metric-label">Indexed terms</span>
+            </div>
+          </div>
+        </section>
+        <div class="workspace-grid">
+          <section
+            class="panel library"
+            id="library"
+            aria-labelledby="library-heading"
+          >
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">YOUR KNOWLEDGE, ORGANISED</p>
+                <h2 id="library-heading">Document library</h2>
+              </div>
+              <span id="library-count" class="count-badge">0</span>
+            </div>
+            <input
+              type="file"
+              id="file-input"
+              multiple
+              accept=".pdf,.docx,.txt,.md"
+              hidden
+            />
+            <button type="button" id="dropzone" class="dropzone">
+              <span class="upload-icon"
+                ><svg><use href="#i-upload" /></svg></span
+              ><strong id="upload-label">Drop files or browse</strong
+              ><span>PDF, DOCX, TXT, MD · up to 10 MB each</span>
+            </button>
+            <div id="upload-progress" class="upload-progress" hidden>
+              <span class="spinner"></span
+              ><span>Reading and indexing your documents…</span>
+            </div>
+            <p id="ingest-error" class="error" role="alert" hidden></p>
+            <div class="file-search">
+              <svg><use href="#i-search" /></svg
+              ><input
+                id="file-search"
+                type="search"
+                placeholder="Find a document…"
+                aria-label="Search documents by filename"
+              />
+            </div>
+            <ul
+              id="doc-list"
+              class="doc-list"
+              aria-label="Indexed documents"
+            ></ul>
+            <div id="library-empty" class="library-empty">
+              <span class="empty-file"
+                ><svg><use href="#i-logo" /></svg></span
+              ><strong>A fresh start.</strong>
+              <p>
+                Add your first document to turn<br />information into answers.
+              </p>
+            </div>
+            <div class="library-footer">
+              <span id="storage-note">Saved on this server</span
+              ><button
+                type="button"
+                id="reset-btn"
+                class="text-button danger"
+                disabled
+              >
+                Clear library
+              </button>
+            </div>
+          </section>
+
+          <section
+            class="panel research"
+            id="conversation"
+            aria-labelledby="research-heading"
+          >
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">LET’S CONNECT THE DOTS</p>
+                <h2 id="research-heading">Ask your documents</h2>
+              </div>
+              <span id="llm-badge" class="mode-badge">Document answers</span>
+            </div>
+            <div class="session-toolbar">
+              <span
+                ><span class="status-dot"></span
+                ><span id="session-label">New research session</span></span
+              >
+              <div>
+                <button
+                  type="button"
+                  id="new-session"
+                  class="text-button"
+                  disabled
+                >
+                  New session</button
+                ><button
+                  type="button"
+                  id="export-btn"
+                  class="icon-button"
+                  aria-label="Export session as Markdown"
+                  title="Export session as Markdown"
+                  disabled
+                >
+                  <svg><use href="#i-download" /></svg>
+                </button>
+              </div>
+            </div>
+            <div
+              id="answer-area"
+              class="answer-area"
+              aria-live="polite"
+              aria-relevant="additions"
+            >
+              <div id="welcome" class="welcome">
+                <div class="welcome-symbol">
+                  <svg><use href="#i-chat" /></svg><span class="spark">✦</span>
+                </div>
+                <p class="eyebrow">GOOD QUESTIONS START HERE</p>
+                <h3>There’s more in your documents<br />than you think.</h3>
+                <p>
+                  Upload a file and ask about a detail, a decision,<br
+                    class="desktop-break"
+                  />
+                  or an idea. We’ll help you find the passage.
+                </p>
+                <button type="button" id="sample-btn" class="sample-button">
+                  Try a sample document
+                  <svg><use href="#i-arrow" /></svg></button
+                ><span class="sample-caption"
+                  >No files handy? Explore a short observatory guide.</span
+                >
+              </div>
+            </div>
+            <p
+              id="ask-error"
+              class="error composer-error"
+              role="alert"
+              hidden
+            ></p>
+            <form id="ask-form" class="composer">
+              <label class="sr-only" for="question">Your question</label
+              ><textarea
+                id="question"
+                rows="2"
+                maxlength="2000"
+                placeholder="What would you like to understand?"
+                required
+              ></textarea>
+              <div class="composer-bottom">
+                <span id="question-hint"
+                  >Enter to ask · Shift + Enter for a new line</span
+                ><button
+                  type="submit"
+                  id="ask-btn"
+                  class="primary-button"
+                  disabled
+                >
+                  Ask question <svg><use href="#i-arrow" /></svg>
+                </button>
+              </div>
+            </form>
+            <div class="ask-options">
+              <label
+                ><span>Search in</span
+                ><select id="document-scope" aria-label="Document search scope">
+                  <option value="">All documents</option>
+                </select></label
+              >
+              <details class="settings">
+                <summary>Answer settings</summary>
+                <div class="settings-popover">
+                  <label
+                    >Answer mode<select id="mode">
+                      <option value="auto">Automatic</option>
+                      <option value="extractive">Document excerpts</option>
+                      <option value="generative">AI-generated</option>
+                    </select></label
+                  ><label
+                    >Maximum sources<input
+                      id="topk"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value="5"
+                      required
+                  /></label>
+                  <p>
+                    AI-generated answers need a configured provider. Relevance
+                    scores are not confidence scores.
+                  </p>
+                </div>
+              </details>
+            </div>
+            <p class="research-footnote">
+              Grounded in your documents. Always check the cited evidence.
+            </p>
+          </section>
+        </div>
+        <footer class="page-footer">
+          <span
+            >DocumentAnalyser <span class="footer-dot">·</span> Built for a
+            closer look.</span
+          ><a href="/docs" target="_blank" rel="noopener noreferrer"
+            >Explore the API <span aria-hidden="true">↗</span></a
+          >
+        </footer>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <dialog id="confirm-dialog">
+      <form method="dialog">
+        <div class="dialog-icon">
+          <svg><use href="#i-trash" /></svg>
+        </div>
+        <h2 id="confirm-title">Clear document library?</h2>
+        <p id="confirm-description">
+          This removes the documents and their searchable passages from this
+          server.
+        </p>
+        <div class="dialog-actions">
+          <button class="secondary-button" value="cancel">Cancel</button
+          ><button id="confirm-action" class="danger-button" value="confirm">
+            Remove
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </body>
 </html>

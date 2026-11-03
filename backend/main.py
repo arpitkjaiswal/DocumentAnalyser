@@ -1,105 +1,162 @@
-"""FastAPI backend for the RAG Document Q&A app.
-
-Endpoints:
-    GET  /api/health   -> health + LLM availability
-    GET  /api/status   -> indexed documents / chunk counts
-    POST /api/ingest   -> upload one or more files (multipart), index them
-    POST /api/ask      -> ask a question over the indexed corpus
-    POST /api/reset    -> clear the index
-
-Serves the static frontend from ../static at "/".
-"""
+"""DocumentAnalyser API and frontend. Run with one Uvicorn worker."""
 
 from __future__ import annotations
 
+import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import List
+from typing import Literal
 
 from dotenv import load_dotenv
-load_dotenv()
-
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
-from backend import ingest
-# import backend.ingest
-from backend import llm
-from backend import rag
-from backend.store import store
+load_dotenv()
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+from backend import ingest, llm, rag  # noqa: E402 - load .env before provider configuration
+from backend.store import VectorStore  # noqa: E402
 
-app = FastAPI(title="RAG Document Q&A", version="1.0.0")
-app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
-)
-
-
-@app.get("/api/health")
-def health() -> dict:
-    return {"status": "ok", "llm": llm.info()}
+ROOT = Path(__file__).resolve().parent.parent
+MAX_FILE_BYTES = 10 * 1024 * 1024
+MAX_FILES = 10
+EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+logger = logging.getLogger(__name__)
 
 
-@app.get("/api/status")
-def status() -> dict:
-    return {**store.stats(), "llm": llm.info()}
-
-
-@app.post("/api/ingest")
-async def ingest_files(files: List[UploadFile] = File(...)) -> dict:
-    if not files:
-        raise HTTPException(status_code=400, detail="No files uploaded.")
-    added = []
-    errors = []
-    for f in files:
-        data = await f.read()
+def create_app(store: VectorStore | None = None) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        application.state.store = (
+            store
+            if store is not None
+            else VectorStore(
+                os.environ.get(
+                    "DOCUMENT_DB_PATH", str(ROOT / "data" / "documents.sqlite3")
+                )
+            )
+        )
         try:
-            start_id = store.stats()["num_chunks"]
-            doc = ingest.build_document(f.filename, data, start_id=start_id)
-            store.add_chunks(doc.chunks)
-            added.append({"name": f.filename, "chunks": len(doc.chunks)})
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"name": f.filename, "error": str(exc)})
-    if not added and errors:
-        raise HTTPException(status_code=400, detail=errors[0]["error"])
-    return {"added": added, "errors": errors, "status": store.stats()}
+            yield
+        finally:
+            if store is None:
+                application.state.store.close()
 
+    application = FastAPI(title="DocumentAnalyser", version="2.0.0", lifespan=lifespan)
 
-@app.post("/api/ask")
-def ask(question: str = Form(...), top_k: int = Form(5),
-        mode: str = Form("auto")) -> dict:
-    try:
-        return rag.answer(question, top_k=top_k, mode=mode)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    @application.get("/api/health")
+    def health() -> dict:
+        return {"status": "ok", "llm": llm.info()}
 
+    @application.get("/api/status")
+    def status(request: Request) -> dict:
+        return {
+            **request.app.state.store.stats(),
+            "llm": llm.info(),
+            "limits": {"max_file_bytes": MAX_FILE_BYTES, "max_files": MAX_FILES},
+        }
 
-@app.post("/api/remove")
-def remove(name: str = Form(...)) -> dict:
-    if not store.remove_document(name):
-        raise HTTPException(status_code=404, detail=f"Document '{name}' not indexed.")
-    return {"removed": name, "status": store.stats()}
+    @application.post("/api/ingest")
+    async def ingest_files(
+        request: Request, files: list[UploadFile] = File(...)
+    ) -> dict:
+        if len(files) > MAX_FILES:
+            for file in files:
+                await file.close()
+            raise HTTPException(400, f"Upload at most {MAX_FILES} files at a time.")
+        added, errors = [], []
+        for file in files:
+            name = (file.filename or "").replace("\\", "/").split("/")[-1]
+            try:
+                if not name or len(name) > 180 or any(ord(c) < 32 for c in name):
+                    raise ValueError(
+                        "Use a filename of 1–180 characters without control characters."
+                    )
+                if Path(name).suffix.lower() not in EXTENSIONS:
+                    raise ValueError("Unsupported file type. Use PDF, DOCX, TXT or MD.")
+                data = await file.read(MAX_FILE_BYTES + 1)
+                if len(data) > MAX_FILE_BYTES:
+                    raise ValueError("File exceeds the 10 MB limit.")
+                if not data:
+                    raise ValueError("The file is empty.")
+                try:
+                    doc = await run_in_threadpool(ingest.build_document, name, data, 0)
+                except ValueError:
+                    raise
+                except Exception as exc:
+                    raise ValueError(
+                        "Could not read this document. Check that it is a valid, unencrypted file."
+                    ) from exc
+                replaced = await run_in_threadpool(
+                    request.app.state.store.add_document, doc, len(data)
+                )
+                added.append(
+                    {"name": name, "chunks": len(doc.chunks), "replaced": replaced}
+                )
+            except ValueError as exc:
+                errors.append({"name": name, "error": str(exc)})
+            except Exception:
+                logger.exception("Document indexing failed")
+                errors.append(
+                    {"name": name, "error": "Indexing failed. Please try again."}
+                )
+            finally:
+                await file.close()
+        if not added and errors:
+            raise HTTPException(400, errors[0]["error"])
+        return {
+            "added": added,
+            "errors": errors,
+            "status": request.app.state.store.stats(),
+        }
 
+    @application.post("/api/ask")
+    def ask(
+        request: Request,
+        question: str = Form(..., min_length=1, max_length=2000),
+        top_k: int = Form(5, ge=1, le=10),
+        mode: Literal["auto", "extractive", "generative"] = Form("auto"),
+        document: str | None = Form(None, max_length=180),
+    ) -> dict:
+        vector_store = request.app.state.store
+        if document and not any(
+            d["name"] == document for d in vector_store.stats()["docs"]
+        ):
+            raise HTTPException(404, "This document is no longer in the library.")
+        try:
+            return rag.answer(
+                question,
+                top_k=top_k,
+                mode=mode,
+                document=document or None,
+                store=vector_store,
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
-@app.post("/api/reset")
-def reset() -> dict:
-    store.reset()
-    return {"status": store.stats()}
+    @application.post("/api/remove")
+    def remove(request: Request, name: str = Form(..., max_length=180)) -> dict:
+        vector_store = request.app.state.store
+        if not vector_store.remove_document(name):
+            raise HTTPException(404, "This document is no longer in the library.")
+        return {"removed": name, "status": vector_store.stats()}
 
+    @application.post("/api/reset")
+    def reset(request: Request) -> dict:
+        request.app.state.store.reset()
+        return {"status": request.app.state.store.stats()}
 
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    application.mount(
+        "/static", StaticFiles(directory=str(ROOT / "static")), name="static"
+    )
 
-    @app.get("/")
+    @application.get("/")
     def index() -> FileResponse:
-        return FileResponse(str(STATIC_DIR / "index.html"))
+        return FileResponse(ROOT / "static" / "index.html")
+
+    return application
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True)
+app = create_app()

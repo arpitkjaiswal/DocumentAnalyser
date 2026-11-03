@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: documentanalyser
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+# The default filesystem may be ephemeral. For durable storage, attach a Render
+# persistent disk and set DOCUMENT_DB_PATH to a file on that mount.
+# Keep a single instance: each process maintains its own search cache.
